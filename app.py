@@ -12,7 +12,7 @@ import json
 import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
-from utils.groq_analyzer import analyze_transcript
+from utils.groq_analyzer import analyze_transcript, get_backend_label
 from utils.threat_model import ThreatResult, assess_risk_color
 
 st.set_page_config(
@@ -56,8 +56,7 @@ with col_logo:
     </div>
     """, unsafe_allow_html=True)
 with col_status:
-    status_text = "🔴 RECORDING" if st.session_state.recording else "🟢 READY"
-    st.markdown(f'<div class="status-pill">{status_text}</div>', unsafe_allow_html=True)
+    st.markdown('<div class="status-pill">🟢 READY</div>', unsafe_allow_html=True)
 
 st.divider()
 
@@ -202,6 +201,12 @@ with tab_live:
         else:
             st.success("✅ LOW RISK — No significant threats found.")
 
+        # Backend degradation warning
+        if result:
+            backend_warn = get_backend_label(result)
+            if backend_warn:
+                st.warning(backend_warn)
+
         st.markdown("---")
 
         # Radar chart for threat indicators
@@ -273,7 +278,7 @@ with tab_live:
         s1, s2 = st.columns(2)
         s1.metric("Calls Analyzed", st.session_state.calls_analyzed)
         s2.metric("Threats Flagged", st.session_state.threats_flagged)
-        st.caption("🤖 Groq · Llama-3.3-70B + Whisper")
+        st.caption("🤖 Groq → Ollama → Rules · Whisper STT")
 
 # ── Manual analyze trigger ─────────────────────────────────────────────────────
 with tab_live:
