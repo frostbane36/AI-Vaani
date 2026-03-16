@@ -355,3 +355,201 @@ with tab_batch:
         if st.button("🗑️ Clear Batch Results"):
             st.session_state.batch_results = []
             st.rerun()
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 3 — DASHBOARD
+# ══════════════════════════════════════════════════════════════════════════════
+with tab_dashboard:
+    # Collect all results: live + batch
+    all_results = []
+    if st.session_state.threat_result:
+        all_results.append({
+            "filename": "Live / Manual",
+            "result": st.session_state.threat_result,
+            "transcript": st.session_state.transcript,
+        })
+    for item in st.session_state.batch_results:
+        if not item["error"] and item["result"]:
+            all_results.append(item)
+
+    if not all_results:
+        st.info("No analysis data yet. Run a live analysis or process batch files first, then come back here.")
+    else:
+        # ── KPI row ────────────────────────────────────────────────────────────
+        total = len(all_results)
+        high_risk = sum(1 for x in all_results if x["result"].risk_score >= 70)
+        med_risk  = sum(1 for x in all_results if 40 <= x["result"].risk_score < 70)
+        low_risk  = sum(1 for x in all_results if x["result"].risk_score < 40)
+        avg_score = int(sum(x["result"].risk_score for x in all_results) / total)
+
+        k1, k2, k3, k4, k5 = st.columns(5)
+        k1.metric("Total Analyzed", total)
+        k2.metric("🔴 High Risk", high_risk)
+        k3.metric("🟠 Medium Risk", med_risk)
+        k4.metric("🟢 Low Risk", low_risk)
+        k5.metric("Avg Score", avg_score)
+
+        st.markdown("---")
+
+        # ── Row 1: Risk score bar + threat type breakdown ──────────────────────
+        row1_l, row1_r = st.columns([3, 2], gap="large")
+
+        with row1_l:
+            st.markdown("**Risk Scores per Call**")
+            names  = [x["filename"] for x in all_results]
+            scores = [x["result"].risk_score for x in all_results]
+            colors = [assess_risk_color(s) for s in scores]
+            fig_bar = go.Figure(go.Bar(
+                x=names, y=scores,
+                marker_color=colors,
+                text=scores, textposition="outside",
+            ))
+            fig_bar.update_layout(
+                yaxis=dict(range=[0, 110], title="Risk Score"),
+                xaxis=dict(title=""),
+                margin=dict(l=10, r=10, t=10, b=60),
+                height=280,
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                font=dict(size=12),
+            )
+            fig_bar.add_hline(y=70, line_dash="dot", line_color="#FF4B4B", annotation_text="High Risk")
+            fig_bar.add_hline(y=40, line_dash="dot", line_color="#F5A623", annotation_text="Medium Risk")
+            st.plotly_chart(fig_bar, use_container_width=True)
+
+        with row1_r:
+            st.markdown("**Risk Distribution**")
+            fig_pie = go.Figure(go.Pie(
+                labels=["High Risk", "Medium Risk", "Low Risk"],
+                values=[high_risk, med_risk, low_risk],
+                marker_colors=["#FF4B4B", "#F5A623", "#00E5B4"],
+                hole=0.5,
+                textinfo="label+percent",
+            ))
+            fig_pie.update_layout(
+                showlegend=False,
+                margin=dict(l=10, r=10, t=10, b=10),
+                height=280,
+                paper_bgcolor='rgba(0,0,0,0)',
+            )
+            st.plotly_chart(fig_pie, use_container_width=True)
+
+        st.markdown("---")
+
+        # ── Row 2: Threat type frequency + radar ──────────────────────────────
+        row2_l, row2_r = st.columns([3, 2], gap="large")
+
+        with row2_l:
+            st.markdown("**Threat Type Frequency Across All Calls**")
+            threat_counts = {
+                "Urgency":          sum(1 for x in all_results if x["result"].urgency_detected),
+                "OTP Request":      sum(1 for x in all_results if x["result"].otp_request),
+                "Bank Details":     sum(1 for x in all_results if x["result"].bank_details_request),
+                "Impersonation":    sum(1 for x in all_results if x["result"].impersonation_detected),
+                "Cultural Tactic":  sum(1 for x in all_results if x["result"].cultural_tactic),
+            }
+            fig_hbar = go.Figure(go.Bar(
+                x=list(threat_counts.values()),
+                y=list(threat_counts.keys()),
+                orientation='h',
+                marker_color=["#FF4B4B", "#FF4B4B", "#FF4B4B", "#F5A623", "#F5A623"],
+                text=list(threat_counts.values()), textposition="outside",
+            ))
+            fig_hbar.update_layout(
+                xaxis=dict(title="Count", range=[0, max(total, 1) + 0.5]),
+                margin=dict(l=10, r=30, t=10, b=10),
+                height=260,
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+            )
+            st.plotly_chart(fig_hbar, use_container_width=True)
+
+        with row2_r:
+            st.markdown("**Aggregate Threat Radar**")
+            t_vals = list(threat_counts.values())
+            t_norm = [v / max(total, 1) for v in t_vals]
+            t_labels = list(threat_counts.keys())
+            fig_radar2 = go.Figure(go.Scatterpolar(
+                r=t_norm + [t_norm[0]],
+                theta=t_labels + [t_labels[0]],
+                fill='toself',
+                fillcolor='rgba(255,75,75,0.15)',
+                line=dict(color='#FF4B4B', width=2),
+            ))
+            fig_radar2.update_layout(
+                polar=dict(radialaxis=dict(visible=True, range=[0, 1])),
+                showlegend=False,
+                margin=dict(l=20, r=20, t=20, b=20),
+                height=260,
+                paper_bgcolor='rgba(0,0,0,0)',
+            )
+            st.plotly_chart(fig_radar2, use_container_width=True)
+
+        st.markdown("---")
+
+        # ── Row 3: Per-call detail table + alerts ─────────────────────────────
+        st.markdown("**Per-Call Summary**")
+        rows = []
+        for x in all_results:
+            r = x["result"]
+            rows.append({
+                "File": x["filename"],
+                "Risk Score": r.risk_score,
+                "Level": r.risk_level,
+                "Language": r.detected_language,
+                "Urgency": "✅" if r.urgency_detected else "—",
+                "OTP": "✅" if r.otp_request else "—",
+                "Bank": "✅" if r.bank_details_request else "—",
+                "Impersonation": "✅" if r.impersonation_detected else "—",
+                "Cultural": "✅" if r.cultural_tactic else "—",
+                "Threats": r.threat_count,
+            })
+        df = pd.DataFrame(rows)
+        st.dataframe(
+            df.style.apply(
+                lambda col: [
+                    "background-color:#FF4B4B22" if v >= 70
+                    else "background-color:#F5A62322" if v >= 40
+                    else "" for v in col
+                ] if col.name == "Risk Score" else [""] * len(col),
+                axis=0,
+            ),
+            use_container_width=True,
+            hide_index=True,
+        )
+
+        st.markdown("---")
+
+        # ── Alerts for high-risk calls ─────────────────────────────────────────
+        high_risk_items = [x for x in all_results if x["result"].risk_score >= 70]
+        if high_risk_items:
+            st.markdown("**🚨 High Risk Alerts**")
+            for x in high_risk_items:
+                r = x["result"]
+                with st.container():
+                    st.error(
+                        f"**{x['filename']}** — Score: {r.risk_score}/100  \n"
+                        f"{r.summary}  \n"
+                        f"Flagged phrases: {', '.join(r.key_phrases) if r.key_phrases else 'none'}"
+                    )
+
+        # ── Highlighted transcripts for all calls ─────────────────────────────
+        st.markdown("---")
+        st.markdown("**Highlighted Transcripts**")
+        for x in all_results:
+            r = x["result"]
+            _text = x["transcript"]
+            for phrase in r.key_phrases:
+                if phrase and phrase in _text:
+                    _text = _text.replace(
+                        phrase,
+                        f'<mark style="background:#FF4B4B33;border-radius:3px;padding:1px 3px;'
+                        f'border-bottom:2px solid #FF4B4B;font-weight:600">{phrase}</mark>'
+                    )
+            risk_color = assess_risk_color(r.risk_score)
+            st.markdown(
+                f'<div style="font-size:12px;font-weight:600;color:{risk_color};margin-bottom:4px">'
+                f'{x["filename"]} — {r.risk_score}/100 [{r.risk_level}]</div>'
+                f'<div class="transcript-box">{_text}</div>',
+                unsafe_allow_html=True,
+            )
