@@ -9,6 +9,7 @@ import json
 import re
 from groq import Groq
 from utils.threat_model import ThreatResult
+from utils.link_detector import detect_suspicious_links
 
 client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
@@ -84,8 +85,17 @@ Respond with JSON only."""
         raw = re.sub(r"```$", "", raw).strip()
 
         data = json.loads(raw)
+
+        # Run local link detection on top of LLM result
+        links = detect_suspicious_links(transcript)
+        high_links = [l for l in links if l.risk == "HIGH"]
+        base_score = int(data.get("risk_score", 0))
+        # Bump score if suspicious links found (max +20)
+        link_boost = min(len(high_links) * 10, 20) if high_links else 0
+        final_score = min(base_score + link_boost, 100)
+
         return ThreatResult(
-            risk_score=int(data.get("risk_score", 0)),
+            risk_score=final_score,
             detected_language=data.get("detected_language", "Unknown"),
             confidence=int(data.get("confidence", 0)),
             urgency_detected=bool(data.get("urgency_detected", False)),
@@ -95,31 +105,22 @@ Respond with JSON only."""
             cultural_tactic=bool(data.get("cultural_tactic", False)),
             summary=data.get("summary", "Analysis complete."),
             key_phrases=data.get("key_phrases", []),
+            suspicious_links=links,
         )
 
     except json.JSONDecodeError as e:
         return ThreatResult(
-            risk_score=0,
-            detected_language="Unknown",
-            confidence=0,
-            urgency_detected=False,
-            otp_request=False,
-            bank_details_request=False,
-            impersonation_detected=False,
-            cultural_tactic=False,
+            risk_score=0, detected_language="Unknown", confidence=0,
+            urgency_detected=False, otp_request=False, bank_details_request=False,
+            impersonation_detected=False, cultural_tactic=False,
             summary=f"JSON parse error: {e}. Raw response: {raw[:200]}",
-            key_phrases=[],
+            key_phrases=[], suspicious_links=[],
         )
     except Exception as e:
         return ThreatResult(
-            risk_score=0,
-            detected_language="Unknown",
-            confidence=0,
-            urgency_detected=False,
-            otp_request=False,
-            bank_details_request=False,
-            impersonation_detected=False,
-            cultural_tactic=False,
+            risk_score=0, detected_language="Unknown", confidence=0,
+            urgency_detected=False, otp_request=False, bank_details_request=False,
+            impersonation_detected=False, cultural_tactic=False,
             summary=f"Analysis error: {str(e)}",
-            key_phrases=[],
+            key_phrases=[], suspicious_links=[],
         )

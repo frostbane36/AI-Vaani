@@ -119,7 +119,7 @@ with tab_live:
 
         # Demo scenarios
         st.markdown("#### 🧪 Demo Scenarios")
-        dcol1, dcol2, dcol3 = st.columns(3)
+        dcol1, dcol2, dcol3, dcol4 = st.columns(4)
         with dcol1:
             if st.button("⚠️ OTP Fraud\n(Marathi)", use_container_width=True):
                 st.session_state.transcript = (
@@ -146,12 +146,30 @@ with tab_live:
                     "मौसम बहुत अच्छा है आजकल।"
                 )
                 st.rerun()
+        with dcol4:
+            if st.button("🔗 Link Scam\n(English)", use_container_width=True):
+                st.session_state.transcript = (
+                    "Hello, your KYC verification is pending. Your account will be blocked. "
+                    "Please click this link immediately to update: http://sbi-kyc-update.xyz/verify "
+                    "Or visit bit.ly/sbi-kyc-now to complete the process. "
+                    "You can also go to sbi-secure dot com slash login to submit your OTP."
+                )
+                st.rerun()
 
         # Highlighted transcript
         if st.session_state.transcript and st.session_state.threat_result:
             st.markdown("#### 🔍 Highlighted Transcript")
             _r = st.session_state.threat_result
             _text = st.session_state.transcript
+            # Highlight suspicious links first (orange)
+            for link in _r.suspicious_links:
+                if link.url in _text:
+                    _text = _text.replace(
+                        link.url,
+                        f'<mark style="background:#F5A62333;border-radius:3px;padding:1px 3px;'
+                        f'border-bottom:2px solid #F5A623;font-weight:600" title="{link.reason}">{link.url}</mark>'
+                    )
+            # Highlight key phrases (red)
             for phrase in _r.key_phrases:
                 if phrase and phrase in _text:
                     _text = _text.replace(
@@ -220,6 +238,7 @@ with tab_live:
                 ("Bank / Financial Data Request", result.bank_details_request, "🔴"),
                 ("Authority Impersonation", result.impersonation_detected, "🟠"),
                 ("Cultural Manipulation", result.cultural_tactic, "🟠"),
+                ("Suspicious Links", bool(result.suspicious_links), "🟠"),
             ]:
                 status = f"{icon} DETECTED" if detected else "🟢 CLEAR"
                 c1, c2 = st.columns([3, 1])
@@ -236,6 +255,12 @@ with tab_live:
         if result and result.key_phrases:
             st.markdown("**Flagged Phrases**")
             st.markdown(" ".join([f'`{p}`' for p in result.key_phrases]))
+
+        if result and result.suspicious_links:
+            st.markdown("**🔗 Suspicious Links Detected**")
+            for link in result.suspicious_links:
+                badge = "🔴" if link.risk == "HIGH" else "🟠"
+                st.error(f"{badge} `{link.url}`  \n_{link.reason}_")
 
         if result and result.detected_language:
             c1, c2, c3 = st.columns(3)

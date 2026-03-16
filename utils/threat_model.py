@@ -4,7 +4,10 @@ Dataclasses and helpers for the threat analysis result.
 """
 
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from utils.link_detector import SuspiciousLink
 
 
 @dataclass
@@ -19,6 +22,7 @@ class ThreatResult:
     cultural_tactic: bool
     summary: str
     key_phrases: List[str] = field(default_factory=list)
+    suspicious_links: List = field(default_factory=list)  # List[SuspiciousLink]
 
     @property
     def risk_level(self) -> str:
@@ -36,6 +40,7 @@ class ThreatResult:
             self.bank_details_request,
             self.impersonation_detected,
             self.cultural_tactic,
+            bool(self.suspicious_links),
         ])
 
 
