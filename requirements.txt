@@ -2,7 +2,7 @@
 # Install with: pip install -r requirements.txt
 
 # Core framework
-streamlit>=1.35.0
+streamlit>=1.37.0
 
 # Environment variable loading
 python-dotenv>=1.0.0
@@ -10,12 +10,11 @@ python-dotenv>=1.0.0
 # LLM inference (Groq — free tier, 500+ tok/sec)
 groq>=0.9.0
 
-# Audio capture from browser microphone
-streamlit-webrtc>=0.47.6
-av>=11.0.0
-
-# HTTP client for Speechmatics API
+# HTTP client (kept for potential future use)
 requests>=2.31.0
+
+# Audio resampling (compress to 16kHz mono before STT upload)
+pydub>=0.25.1
 
 # Numerical audio processing
 numpy>=1.26.0

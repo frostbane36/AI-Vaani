@@ -10,7 +10,6 @@ import streamlit as st
 import time
 import json
 from utils.groq_analyzer import analyze_transcript
-from utils.stt_client import transcribe_audio_chunk
 from utils.threat_model import ThreatResult, assess_risk_color
 
 st.set_page_config(
@@ -71,9 +70,29 @@ with left:
     lang_label = st.selectbox("Language", list(lang_map.keys()), label_visibility="collapsed")
     st.session_state.selected_language = lang_map[lang_label]
 
-    # WebRTC audio streamer (browser mic capture)
+    # Mic recorder — returns WAV bytes when audio is recorded
     from components.audio_stream import render_audio_streamer
-    audio_frames = render_audio_streamer()
+    audio_bytes = render_audio_streamer()
+
+    # Auto-transcribe AND analyze in one shot when new audio is captured
+    if audio_bytes and audio_bytes != st.session_state.get("last_audio_bytes"):
+        st.session_state["last_audio_bytes"] = audio_bytes
+        with st.spinner("Transcribing & analyzing..."):
+            from utils.stt_client import transcribe_audio_chunk
+            transcript = transcribe_audio_chunk(audio_bytes, st.session_state.selected_language)
+            if transcript and not transcript.startswith("[ERROR]"):
+                t0 = time.time()
+                result = analyze_transcript(transcript, st.session_state.selected_language)
+                latency = int((time.time() - t0) * 1000)
+                st.session_state.transcript = transcript
+                st.session_state.threat_result = result
+                st.session_state.calls_analyzed += 1
+                st.session_state.analysis_latency_ms = latency
+                if result.risk_score >= 40:
+                    st.session_state.threats_flagged += 1
+                st.rerun()
+            else:
+                st.warning(transcript or "Transcription returned empty result.")
 
     st.markdown("---")
     st.markdown("#### 📝 Transcript")
