@@ -16,6 +16,9 @@ requests>=2.31.0
 # Audio resampling (compress to 16kHz mono before STT upload)
 pydub>=0.25.1
 
+# Charts and visualizations
+plotly>=5.18.0
+
 # Numerical audio processing
 numpy>=1.26.0
 
